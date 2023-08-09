@@ -1,0 +1,4 @@
+adafruit-circuitpython-lis3dh
+adafruit-circuitpython-ads1x15
+RPi.GPIO
+flask

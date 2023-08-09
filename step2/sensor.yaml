@@ -1,0 +1,101 @@
+---
+# Source: shifu_chart/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: deviceshifu-sensor-configmap
+  namespace: deviceshifu
+data:
+  driverProperties: |
+    driverImage: "displacement-sensor:v0.0.1"
+    driverSku: "sg20"
+  instructions: |
+    instructionSettings:
+      defaultTimeoutSeconds: 3
+    instructions:
+      "sensor":
+  telemetries: |
+    telemetrySettings:
+      telemetryUpdateIntervalInMilliseconds: 6000
+    telemetries:
+---
+# Source: shifu_chart/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: deviceshifu-sensor-deployment
+  name: deviceshifu-sensor
+  namespace: deviceshifu
+spec:
+  ports:
+    - port: 80
+      protocol: TCP
+      targetPort: 8080
+  selector:
+    app: deviceshifu-sensor-deployment
+  type: NodePort
+---
+# Source: shifu_chart/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: deviceshifu-sensor-deployment
+  name: deviceshifu-sensor-deployment
+  namespace: deviceshifu
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: deviceshifu-sensor-deployment
+  template:
+    metadata:
+      labels:
+       app: deviceshifu-sensor-deployment
+    spec:
+      nodeSelector:
+        node-role.kubernetes.io/master: "true"
+      containers:
+        - image: edgehub/deviceshifu-http-http:v0.24.0
+          name: deviceimg
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: deviceshifu-config
+              mountPath: "/etc/edgedevice/config"
+              readOnly: true
+          env:
+            - name: EDGEDEVICE_NAME
+              value: edgedevice-sensor
+            - name: EDGEDEVICE_NAMESPACE
+              value: devices
+        - image: displacement-sensor:v0.0.1
+          name: sensor-driver
+          securityContext:
+            privileged: true
+          ports: 
+          - containerPort: 5000
+          env:
+          - name: PYTHONUNBUFFERED
+            value: "1"
+      volumes:
+      - name: deviceshifu-config
+        configMap:
+          name: deviceshifu-sensor-configmap
+      serviceAccountName: edgedevice-sa
+---
+# Source: shifu_chart/templates/edgedevice.yaml
+apiVersion: shifu.edgenesis.io/v1alpha1
+kind: EdgeDevice
+metadata:
+  name: edgedevice-sensor
+  namespace: devices
+spec:
+  sku: "sg20"
+  connection: Ethernet
+  address: "localhost:5000"
+  protocol: HTTP
+  customMetadata:
+      "description" : "description"
+      "vendor" : "siko"
